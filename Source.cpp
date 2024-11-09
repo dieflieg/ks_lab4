@@ -58,7 +58,7 @@ int main() {
 
     // Цикл обработки каждого фрейма
     while (d < DATA + fsize) {
-        fprintf(out, "Фрейм: %d\n", frames);
+        fprintf(out, "Кадр: %d\n", frames);
         fprintf(out, "MAC-адрес получателя: ");
         print_MACADDR(out, d); // первые 6 байтов - адрес назначения
         fprintf(out, "MAC-адрес отправителя: ");
@@ -67,13 +67,22 @@ int main() {
         unsigned short type = ntohs(*(unsigned short*)(d + 12)); // определяем тип или длину фрейма
         int frame_size = 14; // Инициализируем размер заголовком (14 байт)
 
-        // Отладочный вывод типа фрейма
-        fprintf(out, "Тип (raw): 0x%04X\n", type);
-
         if (type > 0x05DC) { // Ethernet DIX (II)
-            fprintf(out, "Тип фрейма: Ethernet DIX (II)\n");
-            int ip_total_length = ntohs(*(unsigned short*)(d + 16)); // длина IP пакета
-            frame_size += ip_total_length; // полный размер фрейма
+            fprintf(out, "Тип кадра: Ethernet DIX (II)\n");
+            if (type == 0x0800) { // Проверка на IPv4
+                fprintf(out, "Type: IPv4\n");
+                int ip_total_length = ntohs(*(unsigned short*)(d + 16)); // длина IP пакета
+                frame_size += ip_total_length; // полный размер фрейма
+
+                // Вывод IP-адресов
+                fprintf(out, "IP-адрес отправителя: ");
+                print_IPADDR(out, d + 26); // IP отправителя на 27-30 байтах
+                fprintf(out, "IP-адрес получателя: ");
+                print_IPADDR(out, d + 30); // IP получателя на 31-34 байтах
+            }
+            else {
+                frame_size += ntohs(*(unsigned short*)(d + 16)); // полный размер фрейма, если это не IPv4
+            }
             d += frame_size; // смещаем указатель для перехода к следующему фрейму
             type_count[1]++;
         }
@@ -89,6 +98,17 @@ int main() {
             }
             else if (F == 0xAAAA) {
                 fprintf(out, "Тип кадра: Ethernet SNAP\n");
+
+                // Проверка на IPv4 для Ethernet SNAP
+                if (ntohs(*(unsigned short*)(d + 20)) == 0x0800) { // 21-22 байты
+                    fprintf(out, "Type: IPv4\n");
+                    // Вывод IP-адресов
+                    fprintf(out, "IP-адрес отправителя: ");
+                    print_IPADDR(out, d + 34); // IP отправителя на 35-38 байтах
+                    fprintf(out, "IP-адрес получателя: ");
+                    print_IPADDR(out, d + 38); // IP получателя на 39-42 байтах
+                }
+                
                 type_count[3]++;
             }
             else {
@@ -104,7 +124,7 @@ int main() {
     }
 
     // Итоговая статистика
-    fprintf(out, "Общее число фреймов: %d\n", frames - 1);
+    fprintf(out, "Общее число кадров: %d\n", frames - 1);
     fprintf(out, "Ethernet DIX (II): %d\n", type_count[1]);
     fprintf(out, "Raw 802.3/Novell 802.3: %d\n", type_count[2]);
     fprintf(out, "Ethernet SNAP: %d\n", type_count[3]);
