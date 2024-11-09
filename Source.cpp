@@ -64,58 +64,51 @@ int main() {
         fprintf(out, "MAC-адрес отправителя: ");
         print_MACADDR(out, d + 6); // следующие 6 байтов - адрес отправителя
 
-        unsigned short type = ntohs(*(unsigned short*)(d + 12)); // определяем тип фрейма
+        unsigned short type = ntohs(*(unsigned short*)(d + 12)); // определяем тип или длину фрейма
+        int frame_size = 14; // Инициализируем размер заголовком (14 байт)
 
         // Отладочный вывод типа фрейма
         fprintf(out, "Тип (raw): 0x%04X\n", type);
 
-        if (type == 0x0800) { // Если фрейм - IPv4
-            fprintf(out, "Тип фрейма: IPv4\n");
-            fprintf(out, "IP-адрес отправителя: ");
-            print_IPADDR(out, d + 26);
-            fprintf(out, "IP-адрес получателя: ");
-            print_IPADDR(out, d + 30);
-
-            int ip_total_length = ntohs(*(unsigned short*)(d + 16)); // длина IP пакета
-            d += ip_total_length + 14; // смещаем указатель для перехода к следующему фрейму
-            type_count[0]++;
-        }
-        else if (type > 0x05DC) { // Если фрейм - Ethernet DIX (II)
+        if (type > 0x05DC) { // Ethernet DIX (II)
             fprintf(out, "Тип фрейма: Ethernet DIX (II)\n");
-            d += 1500 + 14; // фиксированный переход для Ethernet DIX (II)
+            int ip_total_length = ntohs(*(unsigned short*)(d + 16)); // длина IP пакета
+            frame_size += ip_total_length; // полный размер фрейма
+            d += frame_size; // смещаем указатель для перехода к следующему фрейму
             type_count[1]++;
         }
-        else { // Если фрейм - IEEE 802.3
-            unsigned short F = ntohs(*(unsigned short*)(d + 14)); // первые 2 байта данных
+        else {
+            frame_size += type; // для всех остальных типов длина равна значению поля type
 
-            // Отладочный вывод F
-            fprintf(out, "F (raw): 0x%04X\n", F);
+            unsigned short F = ntohs(*(unsigned short*)(d + 14)); // следующие 2 байта после поля type (или length)
 
+            // Определение типа кадра по 15-16 байтам 
             if (F == 0xFFFF) {
-                fprintf(out, "Тип фрейма: Novell 802.3\n");
+                fprintf(out, "Тип кадра: Raw 802.3/Novell 802.3\n");
                 type_count[2]++;
             }
             else if (F == 0xAAAA) {
-                fprintf(out, "Тип фрейма: Ethernet SNAP\n");
+                fprintf(out, "Тип кадра: Ethernet SNAP\n");
                 type_count[3]++;
             }
             else {
-                fprintf(out, "Тип фрейма: 802.3/LLC (Ethernet 802.2)\n");
+                fprintf(out, "Тип кадра: Ethernet LLC\n");
                 type_count[4]++;
             }
-            d += 1500 + 14; // переход для других типов фреймов
+            d += frame_size; // переход к следующему фрейму, используя длину
         }
+
+        fprintf(out, "Размер фрейма: %d байт\n", frame_size);
         fprintf(out, "\n-------------------------------\n");
         frames++;
     }
 
     // Итоговая статистика
     fprintf(out, "Общее число фреймов: %d\n", frames - 1);
-    fprintf(out, "IPv4: %d\n", type_count[0]);
     fprintf(out, "Ethernet DIX (II): %d\n", type_count[1]);
-    fprintf(out, "Novell 802.3: %d\n", type_count[2]);
+    fprintf(out, "Raw 802.3/Novell 802.3: %d\n", type_count[2]);
     fprintf(out, "Ethernet SNAP: %d\n", type_count[3]);
-    fprintf(out, "802.3/LLC: %d\n", type_count[4]);
+    fprintf(out, "Ethernet LLC: %d\n", type_count[4]);
 
     fclose(out);
     delete[] DATA;
