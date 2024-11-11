@@ -143,7 +143,7 @@
   </ItemGroup>
   <ItemGroup>
     <None Include="..\..\..\Documents\Учеба\5 семестр\компьютерные сети\файлы для лр4\ethers09.bin" />
-    <None Include="test.bin" />
+    <None Include="test1.bin" />
   </ItemGroup>
   <ItemGroup>
     <Text Include="out.txt" />
