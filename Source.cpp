@@ -6,7 +6,7 @@
 #pragma comment(lib, "Ws2_32.lib")
 
 // выводит MAC-адрес (6 байт) в читаемом формате XX:XX:XX:XX:XX:XX
-void print_MACADDR(FILE* out, char* MAC) { 
+void print_MACADDR(FILE* out, char* MAC) {
     for (int i = 0; i < 5; i++) {
         fprintf(out, "%02X:", (unsigned char)MAC[i]);
     }
@@ -57,6 +57,7 @@ int main() {
     char* d = DATA;
     int frames = 1;
     size_t type_count[5] = { 0 };
+    size_t packet_count[3] = { 0 }; // IPv4, ARP, IPX
 
     // Цикл обработки каждого кадра
     while (d < DATA + fsize) {
@@ -74,6 +75,7 @@ int main() {
 
             if (type == 0x0800) { // проверка, принадлежит ли вложенный пакет типу IPv4
                 fprintf(out, "Type: IPv4\n");
+                packet_count[0]++; // Увеличиваем счетчик IPv4 пакетов
                 int ip_total_length = ntohs(*(unsigned short*)(d + 16)); // длина IP пакета 
                 frame_size += ip_total_length; // полный размер фрейма = длина Ethernet заголовка + длина вложенного IP пакета
                 fprintf(out, "Длина IPv4 пакета: %d байт\n", ip_total_length);
@@ -85,6 +87,7 @@ int main() {
             }
             else if (type == 0x0806) { // проверка, принадлежит ли вложенный пакет типу ARP
                 fprintf(out, "Type: ARP\n");
+                packet_count[1]++; // Увеличиваем счетчик ARP пакетов
                 fprintf(out, "Длина ARP пакета: 28 байт\n");
                 int arp_packet_length = 28; // фиксированный размер ARP пакета в байтах
                 frame_size += arp_packet_length; // полный размер фрейма = длина Ethernet заголовка + длина ARP пакета
@@ -98,6 +101,7 @@ int main() {
             }
             else if (type == 0x8137 || type == 0x8138) { // проверка, принадлежит ли вложенный пакет типу Novell IPX
                 fprintf(out, "Type: Novell IPX\n");
+                packet_count[2]++; // Увеличиваем счетчик IPX пакетов
                 int ipx_packet_length = ntohs(*(unsigned short*)(d + 16)); // размер IPX пакета (в байтах) из 3-4 байтов пакета
                 frame_size += ipx_packet_length; // полный размер фрейма = длина Ethernet заголовка + длина IPX пакета
 
@@ -116,7 +120,7 @@ int main() {
         }
 
         else {
-            frame_size += type ; // для всех остальных типов длина равна значению поля length + длина Ethernet заголовка
+            frame_size += type; // для всех остальных типов длина равна значению поля length + длина Ethernet заголовка
 
             unsigned short F = ntohs(*(unsigned short*)(d + 14)); // следующие 2 байта после поля length
 
@@ -131,7 +135,8 @@ int main() {
                 // проверка, принадлежит ли пакет, вложенный в кадр  Ethernet SNAP, типу IPv4
                 if (ntohs(*(unsigned short*)(d + 20)) == 0x0800) { // 21-22 байты
                     fprintf(out, "Type: IPv4\n");
-                    fprintf(out, "Длина IPv4 пакета: %d байт\n", frame_size-14);
+                    packet_count[0]++; // Увеличиваем счетчик IPv4 пакетов
+                    fprintf(out, "Длина IPv4 пакета: %d байт\n", frame_size - 14);
                     // Вывод IP-адресов
                     fprintf(out, "IP-адрес отправителя: ");
                     print_IPADDR(out, d + 34); // IP отправителя на 35-38 байтах
@@ -159,9 +164,14 @@ int main() {
     fprintf(out, "Raw 802.3/Novell 802.3: %d\n", type_count[2]);
     fprintf(out, "Ethernet SNAP: %d\n", type_count[3]);
     fprintf(out, "802.3/LLC: %d\n", type_count[4]);
+    fprintf(out, "Из них:\n");
+    fprintf(out, "IPv4 пакеты: %d\n", packet_count[0]);
+    fprintf(out, "ARP пакеты: %d\n", packet_count[1]);
+    fprintf(out, "IPX пакеты: %d\n", packet_count[2]);
 
-    fclose(out);
+    // Освобождение выделенной памяти
     delete[] DATA;
-    system("pause");
+    fclose(out);
+    printf("Работа завершена. Результаты сохранены в out.txt\n");
     return 0;
 }
