@@ -76,13 +76,33 @@ int main() {
                 fprintf(out, "Type: IPv4\n");
                 int ip_total_length = ntohs(*(unsigned short*)(d + 16)); // длина IP пакета 
                 frame_size += ip_total_length; // полный размер фрейма = длина Ethernet заголовка + длина вложенного IP пакета
-
+                fprintf(out, "Длина IPv4 пакета: %d байт\n", ip_total_length);
                 // Вывод IP-адресов
                 fprintf(out, "IP-адрес отправителя: ");
                 print_IPADDR(out, d + 26); // IP отправителя на 27-30 байтах кадра
                 fprintf(out, "IP-адрес получателя: ");
                 print_IPADDR(out, d + 30); // IP получателя на 31-34 байтах кадра
-           
+            }
+            else if (type == 0x0806) { // проверка, принадлежит ли вложенный пакет типу ARP
+                fprintf(out, "Type: ARP\n");
+                fprintf(out, "Длина ARP пакета: 28 байт\n");
+                int arp_packet_length = 28; // фиксированный размер ARP пакета в байтах
+                frame_size += arp_packet_length; // полный размер фрейма = длина Ethernet заголовка + длина ARP пакета
+
+                // Вывод IP-адресов
+                fprintf(out, "IP-адрес отправителя: ");
+                print_IPADDR(out, d + 28); // IP отправителя на 15-18 байтах пакета
+                fprintf(out, "IP-адрес получателя: ");
+                print_IPADDR(out, d + 38); // IP получателя на 25-28 байтах пакета
+
+            }
+            else if (type == 0x8137 || type == 0x8138) { // проверка, принадлежит ли вложенный пакет типу Novell IPX
+                fprintf(out, "Type: Novell IPX\n");
+                int ipx_packet_length = ntohs(*(unsigned short*)(d + 16)); // размер IPX пакета (в байтах) из 3-4 байтов пакета
+                frame_size += ipx_packet_length; // полный размер фрейма = длина Ethernet заголовка + длина IPX пакета
+
+                // Дополнительная обработка IPX-пакета 
+                fprintf(out, "Длина IPX пакета: %d байт\n", ipx_packet_length);
             }
             else {
                 // Обработка ошибки для неизвестного типа
@@ -111,6 +131,7 @@ int main() {
                 // проверка, принадлежит ли пакет, вложенный в кадр  Ethernet SNAP, типу IPv4
                 if (ntohs(*(unsigned short*)(d + 20)) == 0x0800) { // 21-22 байты
                     fprintf(out, "Type: IPv4\n");
+                    fprintf(out, "Длина IPv4 пакета: %d байт\n", frame_size-14);
                     // Вывод IP-адресов
                     fprintf(out, "IP-адрес отправителя: ");
                     print_IPADDR(out, d + 34); // IP отправителя на 35-38 байтах
@@ -133,7 +154,7 @@ int main() {
     }
 
     // Итоговая статистика
-    fprintf(out, "Общее число кадров: %d\n", frames - 1);
+    fprintf(out, "Общее число обработанных кадров: %d\n", frames - 1);
     fprintf(out, "Ethernet DIX (II): %d\n", type_count[1]);
     fprintf(out, "Raw 802.3/Novell 802.3: %d\n", type_count[2]);
     fprintf(out, "Ethernet SNAP: %d\n", type_count[3]);
